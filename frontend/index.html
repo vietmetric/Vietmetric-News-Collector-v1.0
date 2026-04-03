@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vietmetric News Collector - International Intelligence Analysis</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><polygon points='5,45 22,45 50,92 36,92' fill='%231b6b2e'/><polygon points='50,92 64,92 92,9 78,9' fill='%231b6b2e'/><polygon points='76,11 82,28 98,28 85,38 90,55 76,44 62,55 67,38 54,28 70,28' fill='%23e8a815'/></svg>">
+    <style>
+        :root {
+            --primary: #1b5e2e;
+            --primary-light: #27763a;
+            --accent: #b71c1c;
+            --accent-light: #e57373;
+            --bg: #f5f7f5;
+            --card-bg: #ffffff;
+            --text: #2d3748;
+            --text-secondary: #718096;
+            --border: #e2e8f0;
+            --success: #38a169;
+            --warning: #d69e2e;
+            --danger: #e53e3e;
+            --info: #3182ce;
+            --vietnam: #b71c1c;
+            --logo-green: #1b6b2e;
+            --logo-gold: #e8a815;
+            --logo-red: #b71c1c;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+
+        .header { background: linear-gradient(135deg, #d4e6d4 0%, #c8dcc5 40%, #e8dfc4 100%); color: var(--text); padding: 0.8rem 2rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid var(--primary); }
+        .header-text { flex: 1; }
+        .header h1 { font-size: 1.4rem; font-weight: 700; color: var(--primary); }
+        .header .subtitle { font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.15rem; }
+        .header-logo { height: 56px; width: auto; flex-shrink: 0; margin-left: 1.5rem; }
+
+        .container { max-width: 1440px; margin: 0 auto; padding: 1.5rem; }
+        .grid-2 { display: grid; grid-template-columns: 380px 1fr; gap: 1.5rem; }
+        @media (max-width: 1024px) { .grid-2 { grid-template-columns: 1fr; } }
+
+        .card { background: var(--card-bg); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid var(--border); overflow: hidden; }
+        .card-header { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); color: white; padding: 0.8rem 1.2rem; font-weight: 600; font-size: 0.95rem; }
+        .card-header.vietnam { background: linear-gradient(135deg, var(--vietnam) 0%, #b91c1c 100%); }
+        .card-body { padding: 1.2rem; }
+
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; font-weight: 600; font-size: 0.85rem; color: var(--primary); margin-bottom: 0.3rem; }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 0.6rem 0.8rem; border: 1.5px solid var(--border); border-radius: 8px; font-size: 0.9rem; transition: border-color 0.2s; font-family: inherit; }
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,54,93,0.1); }
+        .form-group textarea { resize: vertical; min-height: 60px; }
+        .time-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+
+        .lang-checkboxes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
+        .lang-checkboxes label { display: flex; align-items: center; gap: 0.4rem; font-weight: 400; font-size: 0.82rem; padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; transition: all 0.2s; white-space: nowrap; min-width: 0; }
+        .lang-checkboxes label:hover { background: #edf2f7; }
+        .lang-checkboxes label input[type="checkbox"] { width: 15px; height: 15px; margin: 0; flex-shrink: 0; accent-color: var(--primary); }
+        .lang-checkboxes input:checked + span { color: var(--primary); font-weight: 600; }
+
+        .btn { padding: 0.7rem 1.2rem; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 0.4rem; }
+        .btn-primary { background: var(--primary); color: white; width: 100%; justify-content: center; }
+        .btn-primary:hover { background: #14472a; }
+        .btn-primary:disabled { background: #a0aec0; cursor: not-allowed; }
+        .btn-outline { background: white; color: var(--primary); border: 1.5px solid var(--primary); }
+        .btn-outline:hover { background: #edf2f7; }
+        .btn-group { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+        .btn-group .btn { flex: 1; justify-content: center; font-size: 0.82rem; padding: 0.5rem; }
+        .btn-sm { padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 6px; }
+
+        .upload-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 1.5rem; text-align: center; cursor: pointer; transition: all 0.2s; color: var(--text-secondary); font-size: 0.85rem; }
+        .upload-zone:hover { border-color: var(--primary); background: #edf2f7; }
+        .upload-zone input { display: none; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.8rem; margin-bottom: 1.5rem; }
+        @media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+        .stat-card { background: var(--card-bg); border-radius: 10px; padding: 1rem; text-align: center; border: 1px solid var(--border); }
+        .stat-card .number { font-size: 1.8rem; font-weight: 700; line-height: 1.2; }
+        .stat-card .label { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.2rem; }
+        .stat-critical .number { color: var(--danger); }
+        .stat-high .number { color: #dd6b20; }
+        .stat-medium .number { color: var(--warning); }
+        .stat-low .number { color: var(--success); }
+        .stat-vietnam .number { color: var(--vietnam); }
+
+        .tabs { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 1rem; overflow-x: auto; }
+        .tab { padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s; white-space: nowrap; }
+        .tab:hover { color: var(--primary); }
+        .tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+
+        .article-item { padding: 1rem; border-bottom: 1px solid var(--border); transition: background 0.2s; }
+        .article-item:hover { background: #f7fafc; }
+        .article-item:last-child { border-bottom: none; }
+        .article-title { font-weight: 600; font-size: 0.95rem; color: var(--text); margin-bottom: 0.3rem; }
+        .article-title a { color: inherit; text-decoration: none; }
+        .article-title a:hover { color: var(--primary); text-decoration: underline; }
+        .article-meta { font-size: 0.78rem; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 0.8rem; margin-bottom: 0.3rem; }
+        .article-summary { font-size: 0.85rem; color: #4a5568; margin-top: 0.3rem; }
+
+        .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; }
+        .badge-critical { background: #fed7d7; color: #9b2c2c; }
+        .badge-high { background: #feebc8; color: #9c4221; }
+        .badge-medium { background: #fefcbf; color: #975a16; }
+        .badge-low { background: #c6f6d5; color: #276749; }
+        .badge-vietnam { background: #fef2f2; color: var(--vietnam); border: 1px solid #fca5a5; }
+        .badge-source { background: #ebf8ff; color: #2b6cb0; }
+
+        .keyword-tag { display: inline-block; padding: 0.1rem 0.4rem; background: #ebf4ff; color: var(--info); border-radius: 4px; font-size: 0.72rem; margin: 0.1rem; }
+
+        .summary-box { background: #fffaf0; border: 1px solid #feebc8; border-radius: 10px; padding: 1.2rem; margin-bottom: 1rem; white-space: pre-wrap; font-size: 0.88rem; line-height: 1.7; max-height: 400px; overflow-y: auto; }
+
+        .loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .loading-box { background: white; border-radius: 16px; padding: 2rem 3rem; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+        .spinner { width: 48px; height: 48px; border: 4px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .bar-chart { margin-top: 0.5rem; }
+        .bar-row { display: flex; align-items: center; margin-bottom: 0.4rem; font-size: 0.82rem; }
+        .bar-label { width: 140px; flex-shrink: 0; text-align: right; padding-right: 0.8rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bar-track { flex: 1; height: 20px; background: #edf2f7; border-radius: 4px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--primary), var(--primary-light)); transition: width 0.5s ease; display: flex; align-items: center; padding-left: 0.4rem; color: white; font-size: 0.72rem; font-weight: 600; }
+        .bar-fill.vietnam { background: linear-gradient(90deg, var(--vietnam), #b91c1c); }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 3px; }
+
+        .sidebar { position: sticky; top: 80px; max-height: calc(100vh - 100px); overflow-y: auto; }
+        .source-count { display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0; font-size: 0.82rem; border-bottom: 1px solid #f7fafc; }
+        .source-count:last-child { border-bottom: none; }
+        .empty-state { text-align: center; padding: 3rem; color: var(--text-secondary); }
+        .empty-state .icon { font-size: 3rem; margin-bottom: 1rem; }
+
+        .filter-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.8rem; }
+        .filter-btn { padding: 0.3rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; background: white; cursor: pointer; font-size: 0.78rem; transition: all 0.2s; }
+        .filter-btn:hover { border-color: var(--primary); }
+        .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .filter-btn.active-vietnam { background: var(--vietnam); color: white; border-color: var(--vietnam); }
+
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 0.5rem; margin-top: 1rem; padding: 1rem 0; }
+
+        .info-box { background: #ebf8ff; border: 1px solid #bee3f8; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; font-size: 0.82rem; line-height: 1.7; }
+        .info-box h4 { color: var(--primary); margin-bottom: 0.5rem; }
+
+        .impact-card { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.8rem; margin-bottom: 0.6rem; }
+        .impact-card h5 { color: var(--vietnam); font-size: 0.88rem; margin-bottom: 0.3rem; }
+        .impact-card .count { font-size: 0.78rem; color: var(--text-secondary); }
+
+        .section-label { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; margin-top: 1rem; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-text">
+        <h1>Vietmetric News Collector</h1>
+        <div class="subtitle">International Intelligence Collection & Analysis for Vietnam Foreign Security</div>
+    </div>
+    <img class="header-logo" src="/logo.png" alt="Vietmetric">
+</div>
+
+<div class="container">
+    <div class="grid-2">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="card" style="margin-bottom: 1rem;">
+                <div class="card-header">Collection Parameters</div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label>Keywords (comma-separated)</label>
+                        <textarea id="keywords" placeholder="e.g. South China Sea, ASEAN, Vietnam military..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Time Range</label>
+                        <div class="time-grid">
+                            <select id="time-unit">
+                                <option value="hours">Hours</option>
+                                <option value="minutes">Minutes</option>
+                                <option value="days">Days</option>
+                                <option value="months">Months</option>
+                            </select>
+                            <input type="number" id="time-value" value="24" min="1" max="720">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Languages</label>
+                        <div class="lang-checkboxes" id="lang-filters">
+                            <label><input type="checkbox" value="en" checked><span>English</span></label>
+                            <label><input type="checkbox" value="fr"><span>French</span></label>
+                            <label><input type="checkbox" value="ru"><span>Russian</span></label>
+                            <label><input type="checkbox" value="zh"><span>Chinese</span></label>
+                            <label><input type="checkbox" value="ko"><span>Korean</span></label>
+                            <label><input type="checkbox" value="ja"><span>Japanese</span></label>
+                            <label><input type="checkbox" value="es"><span>Spanish</span></label>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="btn-collect" onclick="startCollection()">Collect & Analyze</button>
+                    <div class="btn-group">
+                        <button class="btn btn-outline btn-sm" onclick="exportReport('docx')">Export .docx</button>
+                        <button class="btn btn-outline btn-sm" onclick="exportReport('pdf')">Export .pdf</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom: 1rem;">
+                <div class="card-header">Upload Input File</div>
+                <div class="card-body">
+                    <div class="upload-zone" onclick="document.getElementById('file-input').click()">
+                        <input type="file" id="file-input" accept=".docx,.pdf,.txt" onchange="handleFileUpload(event)">
+                        <div>Click to select .docx, .pdf or .txt file</div>
+                        <div style="font-size:0.75rem;margin-top:0.3rem;color:#a0aec0">Extract keywords from your document</div>
+                    </div>
+                    <div id="upload-result" style="display:none; margin-top:0.8rem;"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Sources (<span id="source-count">0</span> total)</div>
+                <div class="card-body" id="sources-list" style="max-height: 300px; overflow-y: auto; font-size: 0.82rem;">Loading...</div>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div>
+            <!-- STATS -->
+            <div class="stats-grid" id="stats-grid" style="display:none;">
+                <div class="stat-card stat-critical"><div class="number" id="stat-critical">0</div><div class="label">Critical</div></div>
+                <div class="stat-card stat-high"><div class="number" id="stat-high">0</div><div class="label">High</div></div>
+                <div class="stat-card stat-medium"><div class="number" id="stat-medium">0</div><div class="label">Medium</div></div>
+                <div class="stat-card stat-low"><div class="number" id="stat-low">0</div><div class="label">Low</div></div>
+                <div class="stat-card stat-vietnam"><div class="number" id="stat-vietnam">0</div><div class="label">Vietnam-Related</div></div>
+            </div>
+
+            <!-- TABS -->
+            <div class="card" id="results-card" style="display:none;">
+                <div style="padding: 0.8rem 1.2rem 0;">
+                    <div class="tabs">
+                        <div class="tab active" onclick="switchTab('summary')">Summary</div>
+                        <div class="tab" onclick="switchTab('articles')">Articles</div>
+                        <div class="tab" onclick="switchTab('vietnam')">Vietnam Impact</div>
+                        <div class="tab" onclick="switchTab('sources-tab')">By Source</div>
+                        <div class="tab" onclick="switchTab('topics')">Topics</div>
+                        <div class="tab" onclick="switchTab('entities')">Entities</div>
+                        <div class="tab" onclick="switchTab('scoring')">Scoring Method</div>
+                    </div>
+                </div>
+
+                <!-- TAB: Summary -->
+                <div class="card-body tab-content" id="tab-summary">
+                    <div class="summary-box" id="summary-text"></div>
+                </div>
+
+                <!-- TAB: Articles -->
+                <div class="card-body tab-content" id="tab-articles" style="display:none; padding:0;">
+                    <div style="padding: 0.8rem 1.2rem;">
+                        <div class="section-label">Filter by Threat Level</div>
+                        <div class="filter-bar" id="level-filters">
+                            <button class="filter-btn active" onclick="filterArticles('all', this)">All</button>
+                            <button class="filter-btn" onclick="filterArticles('critical', this)">Critical</button>
+                            <button class="filter-btn" onclick="filterArticles('high', this)">High</button>
+                            <button class="filter-btn" onclick="filterArticles('medium', this)">Medium</button>
+                            <button class="filter-btn" onclick="filterArticles('low', this)">Low</button>
+                        </div>
+                        <div class="section-label">Filter by Source Type</div>
+                        <div class="filter-bar" id="source-filters"></div>
+                        <div class="section-label">Filter by Vietnam Relevance</div>
+                        <div class="filter-bar" id="vietnam-filters">
+                            <button class="filter-btn active" onclick="filterVietnam('all', this)">All</button>
+                            <button class="filter-btn" onclick="filterVietnam('direct', this)">Direct</button>
+                            <button class="filter-btn" onclick="filterVietnam('indirect', this)">Indirect</button>
+                            <button class="filter-btn" onclick="filterVietnam('none', this)">Not Related</button>
+                        </div>
+                        <input type="text" id="search-articles" placeholder="Search within results..." style="width:100%;padding:0.5rem 0.8rem;border:1px solid var(--border);border-radius:8px;font-size:0.85rem;margin-top:0.5rem;" oninput="searchArticles(this.value)">
+                    </div>
+                    <div id="articles-list"></div>
+                    <div class="pagination" id="pagination"></div>
+                </div>
+
+                <!-- TAB: Vietnam Impact -->
+                <div class="card-body tab-content" id="tab-vietnam" style="display:none;">
+                    <div id="vietnam-analysis"></div>
+                </div>
+
+                <!-- TAB: By Source -->
+                <div class="card-body tab-content" id="tab-sources-tab" style="display:none;">
+                    <div id="sources-chart"></div>
+                </div>
+
+                <!-- TAB: Topics -->
+                <div class="card-body tab-content" id="tab-topics" style="display:none;">
+                    <div id="topics-chart"></div>
+                </div>
+
+                <!-- TAB: Entities -->
+                <div class="card-body tab-content" id="tab-entities" style="display:none;">
+                    <div id="entities-chart"></div>
+                </div>
+
+                <!-- TAB: Scoring Method -->
+                <div class="card-body tab-content" id="tab-scoring" style="display:none;">
+                    <div class="info-box">
+                        <h4>Classification Scoring System (0-100 points)</h4>
+                        <p>Each article is scored by scanning its title and summary for security-related keywords and geopolitical entities. The final score determines its threat level.</p>
+
+                        <h4 style="margin-top:1rem;">Security Keywords</h4>
+                        <p><b>High-priority (+15 pts each):</b> military, conflict, war, attack, missile, nuclear, sanctions, invasion, coup, terrorism, South China Sea, sovereignty, territorial, maritime dispute, cyber attack, espionage, ASEAN, Indo-Pacific, Quad, AUKUS (+ equivalents in French, Russian, Chinese, Korean, Japanese)</p>
+                        <p><b>Medium-priority (+8 pts each):</b> diplomacy, treaty, alliance, defense, strategic, geopolitics, trade war, tariff, embargo, human rights, refugee, Belt and Road, submarine, aircraft carrier, ambassador, summit</p>
+                        <p><b>Low-priority (+3 pts each):</b> economy, trade, investment, cooperation, technology, climate, education, tourism</p>
+
+                        <h4 style="margin-top:1rem;">Geopolitical Entities</h4>
+                        <p><b>Critical (+20 pts):</b> Vietnam, China, USA, South China Sea, Taiwan, North Korea</p>
+                        <p><b>High (+10 pts):</b> ASEAN, Japan, South Korea, Australia, India, Russia, Philippines, Indonesia, Thailand, Cambodia, Laos, Myanmar, Malaysia, Singapore</p>
+                        <p><b>Medium (+5 pts):</b> EU, NATO, United Nations, G7, G20, France, Germany, UK</p>
+
+                        <h4 style="margin-top:1rem;">Threat Levels</h4>
+                        <p><span class="badge badge-critical">CRITICAL</span> Score >= 60 - Directly threatens Vietnam security or involves critical entities with high-severity keywords</p>
+                        <p style="margin-top:0.3rem;"><span class="badge badge-high">HIGH</span> Score 35-59 - Significant security implications for the region</p>
+                        <p style="margin-top:0.3rem;"><span class="badge badge-medium">MEDIUM</span> Score 15-34 - Moderate relevance to foreign security</p>
+                        <p style="margin-top:0.3rem;"><span class="badge badge-low">LOW</span> Score < 15 - General international news with limited security impact</p>
+
+                        <h4 style="margin-top:1rem;">Vietnam Relevance</h4>
+                        <p><span class="badge badge-vietnam">DIRECT</span> Article explicitly mentions Vietnam, Hanoi, Ho Chi Minh City, South China Sea/Bien Dong, Spratly/Paracel islands</p>
+                        <p style="margin-top:0.3rem;"><span class="badge badge-vietnam" style="opacity:0.7;">INDIRECT</span> Article mentions regional entities (ASEAN, Mekong, Southeast Asia, neighboring countries) AND contains impact-related keywords</p>
+
+                        <h4 style="margin-top:1rem;">Vietnam Impact Categories</h4>
+                        <p>Articles related to Vietnam are further categorized into 6 impact areas: Maritime & Territorial, Military & Security, Trade & Economy, Diplomacy & Alliances, Regional Stability, Technology & Cyber</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EMPTY STATE -->
+            <div id="empty-state" class="card">
+                <div class="empty-state">
+                    <div class="icon">🌐</div>
+                    <h3>Ready to Collect Intelligence</h3>
+                    <p style="margin-top:0.5rem;">Enter keywords and click "Collect & Analyze" to start.<br>The system scans 50+ international sources across 7 languages.</p>
+                    <button class="btn btn-outline btn-sm" style="margin-top:1rem;" onclick="checkConnection()">Check Source Connectivity</button>
+                    <div id="health-result" style="margin-top:0.8rem;font-size:0.82rem;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loading" style="display:none;">
+    <div class="loading-box">
+        <div class="spinner"></div>
+        <div style="font-weight:600;font-size:1rem;color:var(--primary);">Collecting & Analyzing...</div>
+        <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.5rem;" id="loading-msg">Scanning international sources, please wait...</div>
+    </div>
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+let currentData = null;
+let allArticles = [];
+let filteredArticles = [];
+let currentPage = 1;
+const PAGE_SIZE = 20;
+let currentLevelFilter = 'all';
+let currentSourceFilter = 'all';
+let currentVietnamFilter = 'all';
+let currentSearchQuery = '';
+
+document.addEventListener('DOMContentLoaded', loadSources);
+
+async function loadSources() {
+    try {
+        const resp = await fetch(API_BASE + '/api/sources');
+        const data = await resp.json();
+        document.getElementById('source-count').textContent = data.total;
+        let html = '<div style="margin-bottom:0.5rem;font-weight:600;color:var(--primary);">News (' + data.news_sources.length + ')</div>';
+        data.news_sources.forEach(s => { html += '<div class="source-count"><span>' + s.name + '</span><span style="color:var(--text-secondary)">' + (s.lang||'').toUpperCase() + '</span></div>'; });
+        html += '<div style="margin-top:0.8rem;margin-bottom:0.5rem;font-weight:600;color:var(--primary);">OSINT (' + data.osint_sources.length + ')</div>';
+        data.osint_sources.forEach(s => { html += '<div class="source-count"><span>' + s.name + '</span></div>'; });
+        html += '<div style="margin-top:0.8rem;margin-bottom:0.5rem;font-weight:600;color:var(--primary);">Social (' + data.social_sources.length + ')</div>';
+        data.social_sources.forEach(s => { html += '<div class="source-count"><span>' + s.name + '</span></div>'; });
+        document.getElementById('sources-list').innerHTML = html;
+    } catch (e) {
+        document.getElementById('sources-list').innerHTML = '<div style="color:var(--danger);">Cannot load sources. Check if backend is running.</div>';
+    }
+}
+
+async function startCollection() {
+    const keywords = document.getElementById('keywords').value;
+    const timeUnit = document.getElementById('time-unit').value;
+    const timeValue = parseInt(document.getElementById('time-value').value) || 24;
+    const langCheckboxes = document.querySelectorAll('#lang-filters input:checked');
+    const langs = Array.from(langCheckboxes).map(cb => cb.value).join(',');
+
+    const formData = new FormData();
+    formData.append('keywords', keywords);
+    formData.append('langs', langs);
+    if (timeUnit === 'hours') formData.append('hours', timeValue);
+    else if (timeUnit === 'minutes') formData.append('minutes', timeValue);
+    else if (timeUnit === 'days') formData.append('days', timeValue);
+    else if (timeUnit === 'months') formData.append('months', timeValue);
+
+    document.getElementById('loading').style.display = 'flex';
+    document.getElementById('btn-collect').disabled = true;
+
+    try {
+        const resp = await fetch(API_BASE + '/api/collect', { method: 'POST', body: formData });
+        if (!resp.ok) { const err = await resp.json(); throw new Error(err.detail || 'Server error'); }
+        const data = await resp.json();
+        currentData = data;
+        allArticles = data.articles || [];
+        filteredArticles = [...allArticles];
+        currentPage = 1;
+        currentLevelFilter = 'all';
+        currentSourceFilter = 'all';
+        currentVietnamFilter = 'all';
+
+        const errCount = data.stats?.errors_count || 0;
+        const errSummary = data.stats?.errors_summary || {};
+        if (allArticles.length === 0 && errCount > 0) {
+            let msg = 'No articles collected.\n\nConnection errors (' + errCount + ' sources):\n';
+            if (errSummary.DNS) msg += '- ' + errSummary.DNS + ' DNS resolution failures\n';
+            if (errSummary.BLOCKED) msg += '- ' + errSummary.BLOCKED + ' blocked by firewall/proxy\n';
+            if (errSummary.TIMEOUT) msg += '- ' + errSummary.TIMEOUT + ' timed out\n';
+            msg += '\nSuggestions:\n1. Check your internet connection\n2. Disable VPN/proxy if active\n3. Try a different network';
+            alert(msg);
+        }
+        renderResults(data);
+    } catch (e) { alert('Error: ' + e.message); }
+    finally { document.getElementById('loading').style.display = 'none'; document.getElementById('btn-collect').disabled = false; }
+}
+
+function renderResults(data) {
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('stats-grid').style.display = 'grid';
+    document.getElementById('results-card').style.display = 'block';
+
+    const threat = data.analysis.threat_assessment;
+    document.getElementById('stat-critical').textContent = threat.critical || 0;
+    document.getElementById('stat-high').textContent = threat.high || 0;
+    document.getElementById('stat-medium').textContent = threat.medium || 0;
+    document.getElementById('stat-low').textContent = threat.low || 0;
+
+    const vnImpact = data.analysis.vietnam_impact || {};
+    document.getElementById('stat-vietnam').textContent = vnImpact.total_related || 0;
+
+    document.getElementById('summary-text').textContent = data.analysis.summary;
+
+    // Source filter buttons
+    const srcBreakdown = data.analysis.source_breakdown || {};
+    let srcHtml = '<button class="filter-btn active" onclick="filterSource(\'all\', this)">All Sources</button>';
+    Object.entries(srcBreakdown).forEach(([cat, count]) => {
+        srcHtml += '<button class="filter-btn" onclick="filterSource(\'' + escapeHtml(cat) + '\', this)">' + escapeHtml(cat) + ' (' + count + ')</button>';
+    });
+    document.getElementById('source-filters').innerHTML = srcHtml;
+
+    renderArticles();
+    renderBarChart('topics-chart', data.analysis.key_topics, 'keyword', 'count');
+    renderBarChart('entities-chart', data.analysis.geographic_focus, 'entity', 'count');
+    renderSourcesChart(srcBreakdown);
+    renderVietnamAnalysis(vnImpact);
+}
+
+function renderArticles() {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageItems = filteredArticles.slice(start, start + PAGE_SIZE);
+    let html = '';
+    pageItems.forEach(art => {
+        const badgeClass = 'badge-' + (art.relevance_level || 'low');
+        const levelLabel = {critical:'Critical', high:'High', medium:'Medium', low:'Low'}[art.relevance_level] || 'Low';
+        const vnInfo = art.vietnam_info || {};
+        const vnRel = vnInfo.vietnam_relevance || 'none';
+        const srcCats = (art.source_categories || []).join(', ');
+
+        html += '<div class="article-item">';
+        html += '<div class="article-title"><a href="' + (art.url||'#') + '" target="_blank" rel="noopener">' + escapeHtml(art.title||'No title') + '</a></div>';
+        html += '<div class="article-meta">';
+        html += '<span><b>' + escapeHtml(art.source||'') + '</b></span>';
+        html += '<span>' + escapeHtml(art.source_lang_label||'') + '</span>';
+        html += '<span class="badge ' + badgeClass + '">' + levelLabel + ' (' + (art.relevance_score||0) + ')</span>';
+        if (srcCats) html += '<span class="badge badge-source">' + escapeHtml(srcCats) + '</span>';
+        if (vnRel !== 'none') html += '<span class="badge badge-vietnam">' + vnRel.toUpperCase() + '</span>';
+        if (art.published) { const dt = new Date(art.published); html += '<span>' + dt.toLocaleDateString('en-US') + ' ' + dt.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'}) + '</span>'; }
+        html += '</div>';
+        if (art.summary) html += '<div class="article-summary">' + escapeHtml(art.summary.substring(0,250)) + '</div>';
+        if (vnInfo.impact_categories && vnInfo.impact_categories.length > 0) {
+            html += '<div style="margin-top:0.3rem;">';
+            vnInfo.impact_categories.forEach(cat => { html += '<span class="keyword-tag" style="background:#fef2f2;color:var(--vietnam);">' + escapeHtml(cat) + '</span>'; });
+            html += '</div>';
+        }
+        if (art.matched_keywords && art.matched_keywords.length > 0) {
+            html += '<div style="margin-top:0.2rem;">';
+            art.matched_keywords.slice(0,5).forEach(kw => { html += '<span class="keyword-tag">' + escapeHtml(kw) + '</span>'; });
+            html += '</div>';
+        }
+        html += '</div>';
+    });
+    if (!html) html = '<div class="empty-state"><p>No articles found matching filters.</p></div>';
+    document.getElementById('articles-list').innerHTML = html;
+
+    const totalPages = Math.ceil(filteredArticles.length / PAGE_SIZE);
+    let pagHtml = '';
+    if (totalPages > 1) {
+        pagHtml += '<button class="btn btn-outline btn-sm" ' + (currentPage<=1?'disabled':'') + ' onclick="goPage('+(currentPage-1)+')">Previous</button>';
+        pagHtml += '<span style="font-size:0.85rem;">Page ' + currentPage + ' / ' + totalPages + ' (' + filteredArticles.length + ' articles)</span>';
+        pagHtml += '<button class="btn btn-outline btn-sm" ' + (currentPage>=totalPages?'disabled':'') + ' onclick="goPage('+(currentPage+1)+')">Next</button>';
+    }
+    document.getElementById('pagination').innerHTML = pagHtml;
+}
+
+function goPage(p) { currentPage = p; renderArticles(); }
+
+function applyFilters() {
+    filteredArticles = allArticles.filter(a => {
+        if (currentLevelFilter !== 'all' && a.relevance_level !== currentLevelFilter) return false;
+        if (currentSourceFilter !== 'all' && !(a.source_categories||[]).includes(currentSourceFilter)) return false;
+        const vnRel = (a.vietnam_info||{}).vietnam_relevance || 'none';
+        if (currentVietnamFilter !== 'all' && vnRel !== currentVietnamFilter) return false;
+        if (currentSearchQuery) {
+            const text = ((a.title||'') + ' ' + (a.summary||'') + ' ' + (a.source||'')).toLowerCase();
+            if (!text.includes(currentSearchQuery)) return false;
+        }
+        return true;
+    });
+    currentPage = 1;
+    renderArticles();
+}
+
+function filterArticles(level, btn) {
+    currentLevelFilter = level;
+    document.querySelectorAll('#level-filters .filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyFilters();
+}
+function filterSource(src, btn) {
+    currentSourceFilter = src;
+    document.querySelectorAll('#source-filters .filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyFilters();
+}
+function filterVietnam(rel, btn) {
+    currentVietnamFilter = rel;
+    document.querySelectorAll('#vietnam-filters .filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyFilters();
+}
+function searchArticles(q) { currentSearchQuery = q.toLowerCase(); applyFilters(); }
+
+function renderVietnamAnalysis(vnImpact) {
+    if (!vnImpact || vnImpact.total_related === 0) {
+        document.getElementById('vietnam-analysis').innerHTML = '<div class="empty-state"><p>No Vietnam-related articles found in this collection.</p></div>';
+        return;
+    }
+    let html = '';
+    html += '<div class="summary-box" style="background:#fef2f2;border-color:#fecaca;">' + escapeHtml(vnImpact.summary || '') + '</div>';
+
+    // Threat breakdown
+    const td = vnImpact.threat_by_direction || {};
+    if (td.direct) {
+        html += '<div class="section-label">Direct Mentions - Threat Levels</div>';
+        html += '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">';
+        ['critical','high','medium','low'].forEach(l => {
+            const cnt = (td.direct||{})[l] || 0;
+            if (cnt > 0) html += '<span class="badge badge-' + l + '" style="font-size:0.82rem;padding:0.3rem 0.6rem;">' + l.charAt(0).toUpperCase()+l.slice(1) + ': ' + cnt + '</span>';
+        });
+        html += '</div>';
+    }
+    if (td.indirect) {
+        html += '<div class="section-label">Indirect Mentions - Threat Levels</div>';
+        html += '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">';
+        ['critical','high','medium','low'].forEach(l => {
+            const cnt = (td.indirect||{})[l] || 0;
+            if (cnt > 0) html += '<span class="badge badge-' + l + '" style="font-size:0.82rem;padding:0.3rem 0.6rem;">' + l.charAt(0).toUpperCase()+l.slice(1) + ': ' + cnt + '</span>';
+        });
+        html += '</div>';
+    }
+
+    // Impact categories
+    const cats = vnImpact.impact_by_category || {};
+    if (Object.keys(cats).length > 0) {
+        html += '<div class="section-label">Impact Categories</div>';
+        const maxCat = Math.max(...Object.values(cats).map(c => c.count));
+        html += '<div class="bar-chart">';
+        Object.entries(cats).forEach(([cat, info]) => {
+            const pct = (info.count / maxCat * 100).toFixed(0);
+            html += '<div class="bar-row"><div class="bar-label">' + escapeHtml(cat) + '</div>';
+            html += '<div class="bar-track"><div class="bar-fill vietnam" style="width:' + pct + '%">' + info.count + '</div></div></div>';
+        });
+        html += '</div>';
+
+        // Top articles per category
+        html += '<div class="section-label" style="margin-top:1.5rem;">Top Articles by Impact Area</div>';
+        Object.entries(cats).forEach(([cat, info]) => {
+            if (info.articles && info.articles.length > 0) {
+                html += '<div class="impact-card"><h5>' + escapeHtml(cat) + '</h5>';
+                info.articles.slice(0,3).forEach(art => {
+                    html += '<div style="font-size:0.82rem;margin-top:0.3rem;"><a href="' + escapeHtml(art.url) + '" target="_blank" style="color:var(--primary);">' + escapeHtml(art.title) + '</a>';
+                    html += ' <span class="badge badge-' + art.level + '" style="font-size:0.65rem;">' + art.level + '</span>';
+                    html += ' <span style="color:var(--text-secondary);font-size:0.72rem;">- ' + escapeHtml(art.source) + '</span></div>';
+                });
+                html += '</div>';
+            }
+        });
+    }
+    document.getElementById('vietnam-analysis').innerHTML = html;
+}
+
+function renderSourcesChart(srcBreakdown) {
+    if (!srcBreakdown || Object.keys(srcBreakdown).length === 0) {
+        document.getElementById('sources-chart').innerHTML = '<div class="empty-state"><p>No source data available.</p></div>';
+        return;
+    }
+    const data = Object.entries(srcBreakdown).map(([k,v]) => ({label:k, count:v}));
+    const maxVal = Math.max(...data.map(d => d.count));
+    let html = '<div class="bar-chart">';
+    data.forEach(item => {
+        const pct = (item.count / maxVal * 100).toFixed(0);
+        html += '<div class="bar-row"><div class="bar-label">' + escapeHtml(item.label) + '</div>';
+        html += '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%">' + item.count + '</div></div></div>';
+    });
+    html += '</div>';
+    document.getElementById('sources-chart').innerHTML = html;
+}
+
+function renderBarChart(containerId, data, labelKey, valueKey) {
+    if (!data || data.length === 0) { document.getElementById(containerId).innerHTML = '<div style="color:var(--text-secondary);text-align:center;padding:1rem;">No data</div>'; return; }
+    const maxVal = Math.max(...data.map(d => d[valueKey]));
+    let html = '<div class="bar-chart">';
+    data.slice(0,15).forEach(item => {
+        const pct = (item[valueKey] / maxVal * 100).toFixed(0);
+        html += '<div class="bar-row"><div class="bar-label" title="' + escapeHtml(item[labelKey]) + '">' + escapeHtml(item[labelKey]) + '</div>';
+        html += '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%">' + item[valueKey] + '</div></div></div>';
+    });
+    html += '</div>';
+    document.getElementById(containerId).innerHTML = html;
+}
+
+function switchTab(tabName) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+    event.target.classList.add('active');
+    document.getElementById('tab-' + tabName).style.display = 'block';
+}
+
+async function handleFileUpload(event) {
+    const file = event.target.files[0]; if (!file) return;
+    const formData = new FormData(); formData.append('file', file);
+    const resultDiv = document.getElementById('upload-result');
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<div style="color:var(--info);">Processing ' + file.name + '...</div>';
+    try {
+        const resp = await fetch(API_BASE + '/api/upload', { method: 'POST', body: formData });
+        if (!resp.ok) throw new Error('Upload failed');
+        const data = await resp.json();
+        let html = '<div style="margin-bottom:0.5rem;font-weight:600;color:var(--success);">Processed: ' + data.filename + '</div>';
+        html += '<div style="font-size:0.82rem;color:var(--text-secondary);">Length: ' + data.text_length + ' characters</div>';
+        if (data.suggested_keywords && data.suggested_keywords.length > 0) {
+            html += '<div style="margin-top:0.5rem;font-size:0.82rem;font-weight:600;">Suggested keywords:</div><div style="margin-top:0.3rem;">';
+            data.suggested_keywords.forEach(kw => { html += '<span class="keyword-tag" style="cursor:pointer;" onclick="addKeyword(\'' + escapeHtml(kw) + '\')">' + escapeHtml(kw) + '</span>'; });
+            html += '</div><div style="font-size:0.72rem;color:var(--text-secondary);margin-top:0.3rem;">Click a keyword to add it to the search box</div>';
+        }
+        resultDiv.innerHTML = html;
+    } catch (e) { resultDiv.innerHTML = '<div style="color:var(--danger);">Error: ' + e.message + '</div>'; }
+}
+
+function addKeyword(kw) {
+    const input = document.getElementById('keywords');
+    const current = input.value.trim();
+    if (current) { if (!current.toLowerCase().includes(kw.toLowerCase())) input.value = current + ', ' + kw; }
+    else input.value = kw;
+}
+
+async function exportReport(format) {
+    let endpoint = currentData ? API_BASE + '/api/export/cached/' + format : API_BASE + '/api/export/' + format;
+    document.getElementById('loading').style.display = 'flex';
+    document.getElementById('loading-msg').textContent = 'Generating ' + format.toUpperCase() + ' report...';
+    try {
+        let resp;
+        if (currentData) { resp = await fetch(endpoint, { method: 'POST' }); }
+        else {
+            const formData = new FormData();
+            formData.append('keywords', document.getElementById('keywords').value);
+            formData.append('hours', parseInt(document.getElementById('time-value').value) || 24);
+            formData.append('langs', Array.from(document.querySelectorAll('#lang-filters input:checked')).map(cb=>cb.value).join(','));
+            resp = await fetch(endpoint, { method: 'POST', body: formData });
+        }
+        if (!resp.ok) throw new Error('Export failed');
+        const blob = await resp.blob(); const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'osint_report.' + format; a.click();
+        window.URL.revokeObjectURL(url);
+    } catch (e) { alert('Export error: ' + e.message); }
+    finally { document.getElementById('loading').style.display = 'none'; document.getElementById('loading-msg').textContent = 'Scanning international sources, please wait...'; }
+}
+
+async function checkConnection() {
+    const div = document.getElementById('health-result');
+    div.innerHTML = '<span style="color:var(--info);">Checking all sources... this may take a few seconds.</span>';
+    try {
+        const resp = await fetch(API_BASE + '/api/health');
+        const data = await resp.json();
+        const ok = data.ok_count || 0;
+        const total = data.total_count || 0;
+        const skipped = data.skipped_count || 0;
+
+        let html = data.connected
+            ? '<div style="color:var(--success);font-weight:600;">All ' + total + ' sources reachable!</div>'
+            : '<div style="color:var(--warning);font-weight:600;">' + ok + '/' + total + ' sources reachable</div>';
+        if (skipped > 0) html += '<div style="color:var(--text-secondary);font-size:0.78rem;">' + skipped + ' source(s) skipped (requires API key)</div>';
+
+        // Hiển thị theo nhóm
+        if (data.groups) {
+            for (const [groupName, group] of Object.entries(data.groups)) {
+                const gOk = group.ok || 0;
+                const gFail = group.fail || 0;
+                const gSkip = group.skip || 0;
+                const gTotal = gOk + gFail;
+                const gColor = gFail === 0 ? 'var(--success)' : gOk === 0 ? 'var(--danger)' : 'var(--warning)';
+                html += '<details style="margin-top:0.5rem;border:1px solid var(--border);border-radius:6px;padding:0.4rem 0.6rem;">';
+                html += '<summary style="cursor:pointer;font-weight:600;font-size:0.82rem;">';
+                html += '<span style="color:' + gColor + ';">' + groupName + '</span>';
+                html += ' <span style="font-weight:400;color:var(--text-secondary);">(' + gOk + '/' + gTotal + ' OK';
+                if (gSkip > 0) html += ', ' + gSkip + ' skipped';
+                html += ')</span></summary>';
+                html += '<div style="margin-top:0.3rem;font-size:0.78rem;display:grid;grid-template-columns:1fr 1fr;gap:0.15rem 1rem;">';
+                for (const [name, info] of Object.entries(group.sources)) {
+                    let icon;
+                    if (info.ok === null || info.ok === undefined) {
+                        icon = '<span style="color:var(--text-secondary);">Skip</span>';
+                    } else if (info.ok) {
+                        let extra = '';
+                        if (info.articles !== undefined) extra = ' (' + info.articles + ')';
+                        icon = '<span style="color:var(--success);">OK' + extra + '</span>';
+                    } else {
+                        let reason = '';
+                        if (info.status > 0) reason = ' (' + info.status + ')';
+                        icon = '<span style="color:var(--danger);">Fail' + reason + '</span>';
+                    }
+                    let noteHtml = '';
+                    if (info.note) noteHtml = ' <span style="color:var(--info);font-size:0.72rem;">' + escapeHtml(info.note) + '</span>';
+                    html += '<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHtml(name) + '">' + escapeHtml(name) + ': ' + icon + noteHtml + '</div>';
+                }
+                html += '</div></details>';
+            }
+        }
+
+        if (!data.connected) html += '<div style="margin-top:0.5rem;padding:0.5rem;background:#fffaf0;border-radius:6px;font-size:0.78rem;"><b>Tip:</b> Check your internet connection. If using VPN or proxy, try disabling them.</div>';
+        div.innerHTML = html;
+    } catch (e) { div.innerHTML = '<div style="color:var(--danger);">Cannot connect to backend server.</div>'; }
+}
+
+function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+</script>
+</body>
+</html>
