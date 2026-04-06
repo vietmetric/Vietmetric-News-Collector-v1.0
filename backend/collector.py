@@ -76,12 +76,50 @@ def clean_html(html_text: str) -> str:
     return soup.get_text(separator=" ", strip=True)[:1000]
 
 
+def _match_single_term(term: str, text: str, text_lower: str) -> bool:
+    """Kiểm tra 1 từ khóa đơn lẻ có khớp trong văn bản không.
+    Case-sensitive nếu keyword viết HOA hoàn toàn (VD: AI, ASEAN, NATO, AUKUS).
+    Case-insensitive cho các trường hợp còn lại.
+    """
+    term = term.strip()
+    if not term:
+        return False
+    if term.isupper() and len(term) >= 2:
+        # Keyword viết HOA hoàn toàn → case-sensitive với ranh giới từ
+        if re.search(r'\b' + re.escape(term) + r'\b', text):
+            return True
+    else:
+        # Case-insensitive
+        if term.lower() in text_lower:
+            return True
+    return False
+
+
 def matches_keywords(text: str, keywords: list[str]) -> bool:
-    """Kiểm tra văn bản có chứa từ khóa không (case-insensitive)."""
+    """Kiểm tra văn bản có chứa từ khóa không.
+
+    Hỗ trợ toán tử AND: "AI AND Vietnam" → cả 2 phải xuất hiện trong bài.
+    Các keyword không có AND hoạt động theo logic OR (chỉ cần 1 khớp).
+    Case-sensitive nếu keyword viết HOA hoàn toàn (VD: AI, ASEAN, NATO).
+    Case-insensitive cho các trường hợp còn lại.
+    """
     if not keywords:
         return True
     text_lower = text.lower()
-    return any(kw.lower() in text_lower for kw in keywords)
+    for kw in keywords:
+        kw_stripped = kw.strip()
+        if not kw_stripped:
+            continue
+        # Kiểm tra toán tử AND (phân biệt hoa thường: " AND ")
+        if " AND " in kw_stripped:
+            parts = [p.strip() for p in kw_stripped.split(" AND ")]
+            parts = [p for p in parts if p]  # Bỏ phần rỗng
+            if parts and all(_match_single_term(p, text, text_lower) for p in parts):
+                return True
+        else:
+            if _match_single_term(kw_stripped, text, text_lower):
+                return True
+    return False
 
 
 # ═══════════════════════════════════════════════════════════════

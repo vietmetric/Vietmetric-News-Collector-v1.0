@@ -5,6 +5,7 @@ Thu thập và phân tích thông tin quốc tế phục vụ an ninh đối ngo
 
 import os
 import io
+import re
 import asyncio
 import tempfile
 import shutil
@@ -23,6 +24,40 @@ from collector import collect_all
 from analyzer import analyze_articles
 from exporter import export_docx, export_pdf
 from sources import NEWS_SOURCES, OSINT_SOURCES, SOCIAL_SOURCES, ALL_SOURCES, LANG_LABELS
+
+
+def parse_keywords(raw: str) -> list[str]:
+    """Parse chuỗi từ khóa, hỗ trợ ngoặc kép cho cụm từ nhiều từ.
+
+    Ví dụ:
+      'AI, Vietnam'                    → ['AI', 'Vietnam']
+      '"Quảng Ninh", "Điện Biên Phủ"' → ['Quảng Ninh', 'Điện Biên Phủ']
+      '"South China Sea", ASEAN'       → ['South China Sea', 'ASEAN']
+      'AI AND "Biển Đông"'             → ['AI AND Biển Đông']
+      '"nuclear weapon", Iran'         → ['nuclear weapon', 'Iran']
+    """
+    if not raw or not raw.strip():
+        return []
+    result = []
+    # Tách các cụm trong ngoặc kép trước, thay bằng placeholder
+    quoted = re.findall(r'"([^"]+)"', raw)
+    # Thay ngoặc kép bằng placeholder dạng __Q0__, __Q1__...
+    temp = raw
+    for i, q in enumerate(quoted):
+        temp = temp.replace(f'"{q}"', f'__Q{i}__', 1)
+    # Split phần còn lại bằng dấu phẩy
+    parts = [p.strip() for p in temp.split(",")]
+    for part in parts:
+        if not part:
+            continue
+        # Khôi phục các placeholder
+        restored = part
+        for i, q in enumerate(quoted):
+            restored = restored.replace(f'__Q{i}__', q)
+        restored = restored.strip()
+        if restored:
+            result.append(restored)
+    return result
 
 # ═══════════════════════════════════════════════════════════════
 # KHỞI TẠO APP
@@ -110,7 +145,7 @@ async def collect_news(
     # Giới hạn tối đa 720 giờ (30 ngày) cho GDELT
     actual_hours = min(actual_hours, 720)
 
-    keyword_list = [kw.strip() for kw in keywords.split(",") if kw.strip()] if keywords else []
+    keyword_list = parse_keywords(keywords)
     lang_list = [l.strip() for l in langs.split(",") if l.strip()] if langs else None
 
     try:
@@ -898,7 +933,7 @@ async def export_docx_endpoint(
     langs: str = Form(""),
 ):
     """Thu thập, phân tích và xuất báo cáo .docx"""
-    keyword_list = [kw.strip() for kw in keywords.split(",") if kw.strip()] if keywords else []
+    keyword_list = parse_keywords(keywords)
     lang_list = [l.strip() for l in langs.split(",") if l.strip()] if langs else None
 
     result = await collect_all(keywords=keyword_list, hours=hours, langs_filter=lang_list)
@@ -921,7 +956,7 @@ async def export_pdf_endpoint(
     langs: str = Form(""),
 ):
     """Thu thập, phân tích và xuất báo cáo .pdf"""
-    keyword_list = [kw.strip() for kw in keywords.split(",") if kw.strip()] if keywords else []
+    keyword_list = parse_keywords(keywords)
     lang_list = [l.strip() for l in langs.split(",") if l.strip()] if langs else None
 
     result = await collect_all(keywords=keyword_list, hours=hours, langs_filter=lang_list)

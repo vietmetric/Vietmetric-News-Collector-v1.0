@@ -165,8 +165,16 @@
                 <div class="card-header">Collection Parameters</div>
                 <div class="card-body">
                     <div class="form-group">
-                        <label>Keywords (comma-separated)</label>
-                        <textarea id="keywords" placeholder="e.g. South China Sea, ASEAN, Vietnam military..."></textarea>
+                        <label>Keywords</label>
+                        <textarea id="keywords" placeholder='e.g. "South China Sea", ASEAN, AI AND Vietnam, "Điện Biên Phủ"'></textarea>
+                        <div style="font-size:0.72rem;color:#718096;margin-top:0.35rem;line-height:1.5;">
+                            <strong style="color:#4a5568;">Syntax guide:</strong>
+                            Separate keywords with commas. Use <code style="background:#edf2f7;padding:0.1rem 0.3rem;border-radius:3px;">"quotes"</code> for multi-word phrases
+                            (e.g. <code style="background:#edf2f7;padding:0.1rem 0.3rem;border-radius:3px;">"Điện Biên Phủ"</code>).
+                            Use <code style="background:#edf2f7;padding:0.1rem 0.3rem;border-radius:3px;">AND</code> to require all terms
+                            (e.g. <code style="background:#edf2f7;padding:0.1rem 0.3rem;border-radius:3px;">AI AND Vietnam</code>).
+                            UPPERCASE keywords like <code style="background:#edf2f7;padding:0.1rem 0.3rem;border-radius:3px;">AI</code>, <code style="background:#edf2f7;padding:0.1rem 0.3rem;border-radius:3px;">NATO</code> are matched case-sensitively.
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Time Range</label>
