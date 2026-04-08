@@ -122,6 +122,106 @@ def matches_keywords(text: str, keywords: list[str]) -> bool:
     return False
 
 
+def find_matched_user_keywords(text: str, keywords: list[str]) -> list[str]:
+    """Trả về danh sách user keywords thực sự khớp trong text.
+    Dùng để highlight và kiểm tra mức độ liên quan.
+    """
+    if not keywords:
+        return []
+    matched = []
+    text_lower = text.lower()
+    for kw in keywords:
+        kw_stripped = kw.strip()
+        if not kw_stripped:
+            continue
+        if " AND " in kw_stripped:
+            parts = [p.strip() for p in kw_stripped.split(" AND ")]
+            parts = [p for p in parts if p]
+            if parts and all(_match_single_term(p, text, text_lower) for p in parts):
+                matched.extend(parts)
+        else:
+            if _match_single_term(kw_stripped, text, text_lower):
+                matched.append(kw_stripped)
+    return list(dict.fromkeys(matched))  # Giữ thứ tự, loại trùng
+
+
+# ═══════════════════════════════════════════════════════════════
+# PHÁT HIỆN NGÔN NGỮ ĐƠN GIẢN (dựa trên ký tự Unicode)
+# ═══════════════════════════════════════════════════════════════
+
+# Bảng ánh xạ ngôn ngữ GDELT → mã ngôn ngữ 2 ký tự
+_GDELT_LANG_MAP = {
+    "english": "en", "french": "fr", "spanish": "es", "german": "de",
+    "russian": "ru", "chinese": "zh", "japanese": "ja", "korean": "ko",
+    "arabic": "ar", "portuguese": "pt", "vietnamese": "vi", "thai": "th",
+    "hindi": "hi", "urdu": "ur", "indonesian": "id", "malay": "ms",
+    "turkish": "tr", "persian": "fa", "italian": "it", "dutch": "nl",
+    "polish": "pl", "swedish": "sv", "norwegian": "no", "danish": "da",
+    "finnish": "fi", "czech": "cs", "romanian": "ro", "hungarian": "hu",
+    "greek": "el", "hebrew": "he", "bengali": "bn", "tamil": "ta",
+    "telugu": "te", "marathi": "mr", "gujarati": "gu", "kannada": "kn",
+    "malayalam": "ml", "punjabi": "pa", "nepali": "ne", "sinhala": "si",
+    "burmese": "my", "khmer": "km", "lao": "lo",
+}
+
+
+def _detect_lang_from_text(text: str) -> str:
+    """Phát hiện ngôn ngữ dựa trên ký tự Unicode trong text.
+    Trả về mã ngôn ngữ 2 ký tự. Fallback: 'en'.
+    """
+    if not text:
+        return "en"
+
+    # Đếm ký tự theo script
+    counts = {"latin": 0, "cjk": 0, "cyrillic": 0, "arabic": 0,
+              "devanagari": 0, "hangul": 0, "thai": 0, "hiragana_katakana": 0}
+    for ch in text[:500]:  # Kiểm tra 500 ký tự đầu
+        cp = ord(ch)
+        if 0x0041 <= cp <= 0x024F:
+            counts["latin"] += 1
+        elif 0x4E00 <= cp <= 0x9FFF or 0x3400 <= cp <= 0x4DBF:
+            counts["cjk"] += 1
+        elif 0x0400 <= cp <= 0x04FF:
+            counts["cyrillic"] += 1
+        elif 0x0600 <= cp <= 0x06FF or 0x0750 <= cp <= 0x077F:
+            counts["arabic"] += 1
+        elif 0x0900 <= cp <= 0x097F:
+            counts["devanagari"] += 1
+        elif 0xAC00 <= cp <= 0xD7AF or 0x1100 <= cp <= 0x11FF:
+            counts["hangul"] += 1
+        elif 0x0E00 <= cp <= 0x0E7F:
+            counts["thai"] += 1
+        elif 0x3040 <= cp <= 0x30FF or 0x31F0 <= cp <= 0x31FF:
+            counts["hiragana_katakana"] += 1
+
+    total = sum(counts.values())
+    if total == 0:
+        return "en"
+
+    top_script = max(counts, key=counts.get)
+    ratio = counts[top_script] / total
+
+    if top_script == "cjk" and ratio > 0.1:
+        # Phân biệt Chinese vs Japanese
+        if counts["hiragana_katakana"] > 0:
+            return "ja"
+        return "zh"
+    elif top_script == "hangul" and ratio > 0.1:
+        return "ko"
+    elif top_script == "cyrillic" and ratio > 0.2:
+        return "ru"
+    elif top_script == "arabic" and ratio > 0.2:
+        return "ar"
+    elif top_script == "devanagari" and ratio > 0.2:
+        return "hi"
+    elif top_script == "thai" and ratio > 0.2:
+        return "th"
+    elif top_script == "hiragana_katakana" and ratio > 0.1:
+        return "ja"
+
+    return "en"  # Latin script → mặc định English
+
+
 # ═══════════════════════════════════════════════════════════════
 # THU THẬP RSS
 # ═══════════════════════════════════════════════════════════════
@@ -153,10 +253,13 @@ async def fetch_rss(source: dict, hours: int = 24, keywords: list[str] = None,
             if pub_date and pub_date < cutoff:
                 continue
 
-            # Lọc theo từ khóa
+            # Lọc theo từ khóa - chỉ dùng title + summary (nội dung chính)
             combined_text = f"{title} {summary}"
             if not matches_keywords(combined_text, keywords or []):
                 continue
+
+            # Tìm user keywords thực sự khớp trong nội dung
+            user_kw_matched = find_matched_user_keywords(combined_text, keywords or [])
 
             results.append({
                 "id": generate_id(link),
@@ -168,7 +271,8 @@ async def fetch_rss(source: dict, hours: int = 24, keywords: list[str] = None,
                 "summary": summary,
                 "url": link,
                 "published": pub_date.isoformat() if pub_date else datetime.now(timezone.utc).isoformat(),
-                "type": "news"
+                "type": "news",
+                "user_matched_keywords": user_kw_matched
             })
 
     except Exception as e:
@@ -206,8 +310,11 @@ async def _try_gdelt_endpoint(url: str, params: dict,
         return None
 
 
-def _parse_gdelt_articles(data: dict, max_items: int = 75) -> list[dict]:
-    """Chuyển đổi JSON response GDELT thành danh sách bài viết chuẩn."""
+def _parse_gdelt_articles(data: dict, max_items: int = 75,
+                          langs_filter: list[str] = None) -> list[dict]:
+    """Chuyển đổi JSON response GDELT thành danh sách bài viết chuẩn.
+    Lọc theo ngôn ngữ nếu langs_filter được chỉ định.
+    """
     results = []
     articles = data.get("articles", [])
     if not articles and isinstance(data, list):
@@ -218,8 +325,18 @@ def _parse_gdelt_articles(data: dict, max_items: int = 75) -> list[dict]:
         source_url = art.get("url", "")
         seendate = art.get("seendate", "")
         domain = art.get("domain", "")
-        lang = art.get("language", "English")
+        lang_raw = art.get("language", "English")
         tone = art.get("tone", 0)
+
+        # Xác định mã ngôn ngữ chính xác
+        lang_code = _GDELT_LANG_MAP.get(lang_raw.lower().strip(), "") if lang_raw else ""
+        if not lang_code:
+            # Fallback: phát hiện ngôn ngữ từ tiêu đề
+            lang_code = _detect_lang_from_text(title)
+
+        # Lọc ngôn ngữ: bỏ bài không thuộc ngôn ngữ được chọn
+        if langs_filter and lang_code not in langs_filter:
+            continue
 
         pub_dt = None
         if seendate:
@@ -230,11 +347,13 @@ def _parse_gdelt_articles(data: dict, max_items: int = 75) -> list[dict]:
 
         tone_label = "tieu cuc" if tone < -3 else ("tich cuc" if tone > 3 else "trung tinh")
 
+        lang_label = lang_raw if lang_raw else "English"
+
         results.append({
             "id": generate_id(source_url),
             "source": f"GDELT - {domain}",
-            "source_lang": lang[:2].lower() if lang else "en",
-            "source_lang_label": lang if lang else "English",
+            "source_lang": lang_code,
+            "source_lang_label": lang_label,
             "category": "OSINT / GDELT",
             "title": title,
             "summary": f"Tone: {tone:.1f} ({tone_label}) | Nguon: {domain}",
@@ -247,7 +366,8 @@ def _parse_gdelt_articles(data: dict, max_items: int = 75) -> list[dict]:
 
 
 async def fetch_gdelt(query: str = "", hours: int = 24,
-                      client: httpx.AsyncClient = None) -> dict:
+                      client: httpx.AsyncClient = None,
+                      langs_filter: list[str] = None) -> dict:
     """
     Thu thập từ GDELT Project. Trả về dict {articles, error}.
 
@@ -309,7 +429,7 @@ async def fetch_gdelt(query: str = "", hours: int = 24,
             for attempt in range(2):
                 data = await _try_gdelt_endpoint(ep["url"], params, client, timeout=30.0)
                 if data is not None:
-                    results = _parse_gdelt_articles(data)
+                    results = _parse_gdelt_articles(data, langs_filter=langs_filter)
                     if results:
                         print(f"[GDELT] Thanh cong: {ep['name']} -> {len(results)} bai viet")
                         return {"articles": results, "error": None}
@@ -424,7 +544,8 @@ async def collect_all(
     keywords: list[str] = None,
     hours: int = 24,
     sources_filter: list[str] = None,
-    langs_filter: list[str] = None
+    langs_filter: list[str] = None,
+    custom_sources: list[dict] = None
 ) -> dict:
     """
     Thu thập tin tức từ tất cả các nguồn.
@@ -434,6 +555,7 @@ async def collect_all(
         hours: Khoảng thời gian thu thập (giờ)
         sources_filter: Lọc theo tên nguồn cụ thể
         langs_filter: Lọc theo ngôn ngữ
+        custom_sources: Danh sách nguồn URL tùy chỉnh từ người dùng
     """
     start_time = time.time()
     all_results = []
@@ -465,27 +587,36 @@ async def collect_all(
                     continue
                 tasks.append(fetch_rss(src, hours=hours, keywords=keywords, client=client))
 
+            # Custom sources từ người dùng
+            if custom_sources:
+                for cs in custom_sources:
+                    if cs.get("url"):
+                        tasks.append(fetch_rss(cs, hours=hours, keywords=keywords, client=client))
+
             # Google News Search RSS (tìm theo từ khóa - luôn hoạt động)
             if keywords:
-                gn_query = "+OR+".join(quote_plus(kw) for kw in keywords)
-                gn_source = {
-                    "name": "Google News - Search",
-                    "url": f"https://news.google.com/rss/search?q={gn_query}&hl=en-US&gl=US&ceid=US:en",
-                    "type": "rss",
-                    "lang": "en",
-                    "category": "Google News Search"
-                }
-                # Google News Search không cần lọc keywords vì query đã lọc sẵn
-                tasks.append(fetch_rss(gn_source, hours=hours, keywords=None, client=client))
+                # Chỉ tạo Google News Search nếu ngôn ngữ English được chọn (hoặc không lọc)
+                if not langs_filter or "en" in langs_filter:
+                    gn_query = "+OR+".join(quote_plus(kw) for kw in keywords)
+                    gn_source = {
+                        "name": "Google News - Search",
+                        "url": f"https://news.google.com/rss/search?q={gn_query}&hl=en-US&gl=US&ceid=US:en",
+                        "type": "rss",
+                        "lang": "en",
+                        "category": "Google News Search"
+                    }
+                    tasks.append(fetch_rss(gn_source, hours=hours, keywords=None, client=client))
 
-            # GDELT
+            # GDELT (truyền langs_filter để lọc ngôn ngữ)
             gdelt_query = " OR ".join(keywords) if keywords else ""
-            tasks.append(fetch_gdelt(query=gdelt_query, hours=hours, client=client))
+            tasks.append(fetch_gdelt(query=gdelt_query, hours=hours, client=client,
+                                     langs_filter=langs_filter))
 
             # Reddit
             for src in SOCIAL_SOURCES:
                 if src["type"] == "social" and "reddit" in src["url"]:
-                    tasks.append(fetch_reddit(src, hours=hours, keywords=keywords, client=client))
+                    if not langs_filter or "en" in langs_filter:
+                        tasks.append(fetch_reddit(src, hours=hours, keywords=keywords, client=client))
 
             # Chạy song song
             results_lists = await asyncio.gather(*tasks, return_exceptions=True)
@@ -516,6 +647,22 @@ async def collect_all(
         if url not in seen_urls:
             seen_urls.add(url)
             unique_results.append(item)
+
+    # Lọc ngôn ngữ lần cuối (safety net): phát hiện ngôn ngữ thực tế từ title
+    if langs_filter:
+        filtered = []
+        for item in unique_results:
+            declared_lang = item.get("source_lang", "en")
+            if declared_lang in langs_filter:
+                filtered.append(item)
+            else:
+                # Double-check bằng phát hiện ký tự Unicode
+                detected = _detect_lang_from_text(item.get("title", ""))
+                if detected in langs_filter:
+                    item["source_lang"] = detected
+                    filtered.append(item)
+                # Nếu không khớp → loại bỏ bài viết
+        unique_results = filtered
 
     elapsed = time.time() - start_time
 

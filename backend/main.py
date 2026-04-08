@@ -121,6 +121,7 @@ async def collect_news(
     days: Optional[int] = Form(None),
     months: Optional[int] = Form(None),
     langs: str = Form(""),
+    custom_sources: str = Form(""),
 ):
     """
     Thu thập tin tức từ tất cả các nguồn.
@@ -131,7 +132,10 @@ async def collect_news(
     - days: Khoảng thời gian (ngày) - ưu tiên nếu có
     - months: Khoảng thời gian (tháng) - ưu tiên nếu có
     - langs: Lọc ngôn ngữ, phân cách bởi dấu phẩy (en,fr,zh...)
+    - custom_sources: JSON array các nguồn tùy chỉnh [{name, url}]
     """
+    import json as _json
+
     # Xử lý thời gian
     if months:
         actual_hours = months * 30 * 24
@@ -148,11 +152,30 @@ async def collect_news(
     keyword_list = parse_keywords(keywords)
     lang_list = [l.strip() for l in langs.split(",") if l.strip()] if langs else None
 
+    # Parse custom sources
+    custom_src_list = []
+    if custom_sources and custom_sources.strip():
+        try:
+            raw_list = _json.loads(custom_sources)
+            for cs in raw_list:
+                url = cs.get("url", "").strip()
+                if url:
+                    custom_src_list.append({
+                        "name": cs.get("name", "") or url,
+                        "url": url,
+                        "type": "rss",
+                        "lang": "en",
+                        "category": "Custom Source"
+                    })
+        except Exception:
+            pass
+
     try:
         result = await collect_all(
             keywords=keyword_list,
             hours=actual_hours,
-            langs_filter=lang_list
+            langs_filter=lang_list,
+            custom_sources=custom_src_list if custom_src_list else None
         )
 
         # Phân tích

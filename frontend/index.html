@@ -105,6 +105,12 @@
 
         .keyword-tag { display: inline-block; padding: 0.1rem 0.4rem; background: #ebf4ff; color: var(--info); border-radius: 4px; font-size: 0.72rem; margin: 0.1rem; }
 
+        .custom-source-row { display: flex; gap: 0.4rem; margin-bottom: 0.4rem; align-items: center; }
+        .custom-source-row input { font-size: 0.78rem; padding: 0.3rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; }
+        .custom-source-row .custom-url { flex: 2; }
+        .custom-source-row .custom-name { flex: 1; }
+        .custom-source-row .btn-remove { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 1rem; padding: 0 0.3rem; line-height: 1; }
+
         .summary-box { background: #fffaf0; border: 1px solid #feebc8; border-radius: 10px; padding: 1.2rem; margin-bottom: 1rem; white-space: pre-wrap; font-size: 0.88rem; line-height: 1.7; max-height: 400px; overflow-y: auto; }
 
         .loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
@@ -223,6 +229,17 @@
             <div class="card">
                 <div class="card-header">Sources (<span id="source-count">0</span> total)</div>
                 <div class="card-body" id="sources-list" style="max-height: 300px; overflow-y: auto; font-size: 0.82rem;">Loading...</div>
+            </div>
+
+            <div class="card" style="margin-top: 1rem;">
+                <div class="card-header">Custom Sources (RSS)</div>
+                <div class="card-body">
+                    <div id="custom-sources-list"></div>
+                    <button class="btn btn-outline btn-sm" onclick="addCustomSource()" style="margin-top:0.5rem;width:100%;">+ Add custom RSS source</button>
+                    <div style="font-size:0.7rem;color:#718096;margin-top:0.4rem;line-height:1.4;">
+                        Add your own RSS feed URLs to scan alongside the built-in sources.
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -368,6 +385,51 @@ let currentLevelFilter = 'all';
 let currentSourceFilter = 'all';
 let currentVietnamFilter = 'all';
 let currentSearchQuery = '';
+let currentSearchKeywords = [];
+
+// Parse keywords giống backend (hỗ trợ ngoặc kép)
+function parseKeywordsForHighlight(raw) {
+    if (!raw || !raw.trim()) return [];
+    const result = [];
+    const quoted = [];
+    let temp = raw;
+    const re = /"([^"]+)"/g;
+    let m;
+    while ((m = re.exec(raw)) !== null) quoted.push(m[1]);
+    for (let i = 0; i < quoted.length; i++) temp = temp.replace('"' + quoted[i] + '"', '__Q' + i + '__');
+    const parts = temp.split(',');
+    for (const part of parts) {
+        let p = part.trim();
+        if (!p) continue;
+        for (let i = 0; i < quoted.length; i++) p = p.replace('__Q' + i + '__', quoted[i]);
+        // Tách AND → lấy từng phần riêng để highlight
+        if (p.includes(' AND ')) {
+            p.split(' AND ').forEach(sub => { if (sub.trim()) result.push(sub.trim()); });
+        } else {
+            result.push(p);
+        }
+    }
+    return result;
+}
+
+// Highlight keywords trong text (trả về HTML an toàn)
+function highlightText(text, keywords) {
+    if (!text || !keywords || keywords.length === 0) return escapeHtml(text);
+    let escaped = escapeHtml(text);
+    // Sắp xếp dài trước ngắn sau để tránh highlight lồng nhau
+    const sorted = [...keywords].sort((a, b) => b.length - a.length);
+    for (const kw of sorted) {
+        const kwEscaped = escapeHtml(kw);
+        let flags = 'gi'; // Mặc định case-insensitive
+        // Nếu keyword viết HOA hoàn toàn → case-sensitive
+        if (kw === kw.toUpperCase() && kw.length >= 2 && /^[A-Z]+$/.test(kw)) flags = 'g';
+        try {
+            const regex = new RegExp('(' + kwEscaped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', flags);
+            escaped = escaped.replace(regex, '<mark style="background:#fef08a;padding:0 2px;border-radius:2px;">$1</mark>');
+        } catch(e) {}
+    }
+    return escaped;
+}
 
 document.addEventListener('DOMContentLoaded', loadSources);
 
@@ -390,14 +452,25 @@ async function loadSources() {
 
 async function startCollection() {
     const keywords = document.getElementById('keywords').value;
+    currentSearchKeywords = parseKeywordsForHighlight(keywords);
     const timeUnit = document.getElementById('time-unit').value;
     const timeValue = parseInt(document.getElementById('time-value').value) || 24;
     const langCheckboxes = document.querySelectorAll('#lang-filters input:checked');
     const langs = Array.from(langCheckboxes).map(cb => cb.value).join(',');
 
+    // Thu thập custom sources
+    const customSourceEls = document.querySelectorAll('.custom-source-row');
+    const customSources = [];
+    customSourceEls.forEach(row => {
+        const url = row.querySelector('.custom-url').value.trim();
+        const name = row.querySelector('.custom-name').value.trim() || url;
+        if (url) customSources.push({name: name, url: url});
+    });
+
     const formData = new FormData();
     formData.append('keywords', keywords);
     formData.append('langs', langs);
+    if (customSources.length > 0) formData.append('custom_sources', JSON.stringify(customSources));
     if (timeUnit === 'hours') formData.append('hours', timeValue);
     else if (timeUnit === 'minutes') formData.append('minutes', timeValue);
     else if (timeUnit === 'days') formData.append('days', timeValue);
@@ -476,7 +549,7 @@ function renderArticles() {
         const srcCats = (art.source_categories || []).join(', ');
 
         html += '<div class="article-item">';
-        html += '<div class="article-title"><a href="' + (art.url||'#') + '" target="_blank" rel="noopener">' + escapeHtml(art.title||'No title') + '</a></div>';
+        html += '<div class="article-title"><a href="' + (art.url||'#') + '" target="_blank" rel="noopener">' + highlightText(art.title||'No title', currentSearchKeywords) + '</a></div>';
         html += '<div class="article-meta">';
         html += '<span><b>' + escapeHtml(art.source||'') + '</b></span>';
         html += '<span>' + escapeHtml(art.source_lang_label||'') + '</span>';
@@ -485,7 +558,7 @@ function renderArticles() {
         if (vnRel !== 'none') html += '<span class="badge badge-vietnam">' + vnRel.toUpperCase() + '</span>';
         if (art.published) { const dt = new Date(art.published); html += '<span>' + dt.toLocaleDateString('en-US') + ' ' + dt.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'}) + '</span>'; }
         html += '</div>';
-        if (art.summary) html += '<div class="article-summary">' + escapeHtml(art.summary.substring(0,250)) + '</div>';
+        if (art.summary) html += '<div class="article-summary">' + highlightText(art.summary.substring(0,250), currentSearchKeywords) + '</div>';
         if (vnInfo.impact_categories && vnInfo.impact_categories.length > 0) {
             html += '<div style="margin-top:0.3rem;">';
             vnInfo.impact_categories.forEach(cat => { html += '<span class="keyword-tag" style="background:#fef2f2;color:var(--vietnam);">' + escapeHtml(cat) + '</span>'; });
@@ -671,6 +744,16 @@ function addKeyword(kw) {
     const current = input.value.trim();
     if (current) { if (!current.toLowerCase().includes(kw.toLowerCase())) input.value = current + ', ' + kw; }
     else input.value = kw;
+}
+
+function addCustomSource() {
+    const container = document.getElementById('custom-sources-list');
+    const row = document.createElement('div');
+    row.className = 'custom-source-row';
+    row.innerHTML = '<input type="text" class="custom-url" placeholder="RSS feed URL">'
+        + '<input type="text" class="custom-name" placeholder="Name (optional)">'
+        + '<button class="btn-remove" onclick="this.parentElement.remove()" title="Remove">&times;</button>';
+    container.appendChild(row);
 }
 
 async function exportReport(format) {
