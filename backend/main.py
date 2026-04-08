@@ -24,6 +24,7 @@ from collector import collect_all
 from analyzer import analyze_articles
 from exporter import export_docx, export_pdf
 from sources import NEWS_SOURCES, OSINT_SOURCES, SOCIAL_SOURCES, ALL_SOURCES, LANG_LABELS
+from translations import expand_keywords_multilang
 
 
 def parse_keywords(raw: str) -> list[str]:
@@ -185,6 +186,9 @@ async def collect_news(
         _latest_result["data"] = analysis
         _latest_result["timestamp"] = datetime.now(timezone.utc).isoformat()
 
+        # Thông tin keywords đa ngôn ngữ
+        multilang_info = expand_keywords_multilang(keyword_list) if keyword_list else None
+
         return {
             "success": True,
             "stats": result["stats"],
@@ -199,6 +203,8 @@ async def collect_news(
                 "vietnam_impact": analysis.get("vietnam_impact", {}),
             },
             "articles": analysis["analyzed_articles"][:200],
+            "translated_keywords": multilang_info["by_lang"] if multilang_info else {},
+            "untranslated_keywords": multilang_info["untranslated"] if multilang_info else [],
             "timestamp": _latest_result["timestamp"]
         }
 
@@ -1047,13 +1053,23 @@ async def serve_logo():
 
 @app.get("/", include_in_schema=False)
 async def serve_frontend():
+    from starlette.responses import HTMLResponse
     for candidate in [
         os.path.join(_backend_dir, "..", "frontend", "index.html"),
         os.path.join(os.getcwd(), "..", "frontend", "index.html"),
         os.path.join(os.getcwd(), "frontend", "index.html"),
     ]:
         if os.path.exists(candidate):
-            return FileResponse(candidate, media_type="text/html")
+            with open(candidate, "r", encoding="utf-8") as f:
+                content = f.read()
+            return HTMLResponse(
+                content=content,
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
     return {"message": "Vietmetric News Collector API v1.0", "docs": "/docs"}
 
 
