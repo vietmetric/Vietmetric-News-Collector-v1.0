@@ -17,6 +17,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from sources import NEWS_SOURCES, OSINT_SOURCES, SOCIAL_SOURCES, LANG_LABELS
+from translations import expand_keywords_multilang, TARGET_LANGS
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -165,19 +166,40 @@ _GDELT_LANG_MAP = {
 }
 
 
+# Ký tự đặc trưng tiếng Việt (dấu thanh và nguyên âm đặc biệt)
+_VI_CHARS = set("àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ"
+                "ÀÁẢÃẠĂẮẰẲẴẶÂẤẦẨẪẬÈÉẺẼẸÊẾỀỂỄỆÌÍỈĨỊÒÓỎÕỌÔỐỒỔỖỘƠỚỜỞỠỢÙÚỦŨỤƯỨỪỬỮỰỲÝỶỸỴĐ")
+
+# Từ phổ biến tiếng Việt (stop words + từ thường gặp trong tin tức)
+_VI_COMMON_WORDS = {
+    "của", "và", "các", "cho", "với", "trong", "được", "này", "là", "có",
+    "không", "những", "một", "đã", "về", "từ", "theo", "đến", "cũng", "tại",
+    "người", "năm", "nhiều", "như", "nhưng", "khi", "đó", "sẽ", "phải",
+    "để", "còn", "việc", "nước", "rằng", "trên", "sau", "mới", "nên",
+    "giữa", "ngày", "thành", "phố", "quốc", "gia", "tỉnh", "huyện",
+    "biển", "đảo", "quân", "sự", "chính", "trị",
+}
+
+
 def _detect_lang_from_text(text: str) -> str:
-    """Phát hiện ngôn ngữ dựa trên ký tự Unicode trong text.
+    """Phát hiện ngôn ngữ dựa trên ký tự Unicode và từ vựng.
     Trả về mã ngôn ngữ 2 ký tự. Fallback: 'en'.
     """
     if not text:
         return "en"
 
+    sample = text[:500]
+
     # Đếm ký tự theo script
     counts = {"latin": 0, "cjk": 0, "cyrillic": 0, "arabic": 0,
-              "devanagari": 0, "hangul": 0, "thai": 0, "hiragana_katakana": 0}
-    for ch in text[:500]:  # Kiểm tra 500 ký tự đầu
+              "devanagari": 0, "hangul": 0, "thai": 0, "hiragana_katakana": 0,
+              "vietnamese": 0}
+    for ch in sample:
         cp = ord(ch)
-        if 0x0041 <= cp <= 0x024F:
+        if ch in _VI_CHARS:
+            counts["vietnamese"] += 1
+            counts["latin"] += 1  # Tiếng Việt cũng dùng Latin
+        elif 0x0041 <= cp <= 0x024F:
             counts["latin"] += 1
         elif 0x4E00 <= cp <= 0x9FFF or 0x3400 <= cp <= 0x4DBF:
             counts["cjk"] += 1
@@ -194,15 +216,27 @@ def _detect_lang_from_text(text: str) -> str:
         elif 0x3040 <= cp <= 0x30FF or 0x31F0 <= cp <= 0x31FF:
             counts["hiragana_katakana"] += 1
 
-    total = sum(counts.values())
+    total = sum(v for k, v in counts.items() if k != "vietnamese")
     if total == 0:
         return "en"
 
-    top_script = max(counts, key=counts.get)
-    ratio = counts[top_script] / total
+    # Phát hiện tiếng Việt: ký tự dấu + từ phổ biến
+    if counts["vietnamese"] >= 2:
+        # Có ký tự dấu Việt → rất có thể là tiếng Việt
+        return "vi"
+    # Fallback: kiểm tra từ vựng tiếng Việt
+    words = set(sample.lower().split())
+    vi_word_count = len(words & _VI_COMMON_WORDS)
+    if vi_word_count >= 3:
+        return "vi"
+
+    top_script = max(
+        {k: v for k, v in counts.items() if k != "vietnamese"},
+        key=lambda k: counts[k]
+    )
+    ratio = counts[top_script] / total if total > 0 else 0
 
     if top_script == "cjk" and ratio > 0.1:
-        # Phân biệt Chinese vs Japanese
         if counts["hiragana_katakana"] > 0:
             return "ja"
         return "zh"
@@ -219,7 +253,7 @@ def _detect_lang_from_text(text: str) -> str:
     elif top_script == "hiragana_katakana" and ratio > 0.1:
         return "ja"
 
-    return "en"  # Latin script → mặc định English
+    return "en"  # Latin script không có dấu Việt → mặc định English
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -561,6 +595,17 @@ async def collect_all(
     all_results = []
     errors = []
 
+    # ── Dịch từ khóa sang 7 ngôn ngữ ──
+    multilang = expand_keywords_multilang(keywords) if keywords else None
+    kw_by_lang = multilang["by_lang"] if multilang else {}
+    kw_all = multilang["all_keywords"] if multilang else []
+
+    print(f"[KEYWORDS] Gốc: {keywords}")
+    if kw_by_lang:
+        for lang, kws in kw_by_lang.items():
+            if kws != keywords:
+                print(f"[KEYWORDS] {lang}: {kws[:5]}{'...' if len(kws) > 5 else ''}")
+
     # Tắt SOCKS proxy (httpx không hỗ trợ), giữ HTTP proxy
     _disable_socks_proxy()
 
@@ -585,38 +630,64 @@ async def collect_all(
                     continue
                 if langs_filter and src.get("lang") not in langs_filter:
                     continue
-                tasks.append(fetch_rss(src, hours=hours, keywords=keywords, client=client))
+                # Dùng keywords đã dịch theo ngôn ngữ của nguồn
+                src_lang = src.get("lang", "en")
+                src_keywords = kw_by_lang.get(src_lang, keywords) if kw_by_lang else keywords
+                tasks.append(fetch_rss(src, hours=hours, keywords=src_keywords, client=client))
 
-            # Custom sources từ người dùng
+            # Custom sources từ người dùng (dùng tất cả keywords đa ngôn ngữ)
             if custom_sources:
                 for cs in custom_sources:
                     if cs.get("url"):
-                        tasks.append(fetch_rss(cs, hours=hours, keywords=keywords, client=client))
+                        tasks.append(fetch_rss(cs, hours=hours, keywords=kw_all or keywords, client=client))
 
-            # Google News Search RSS (tìm theo từ khóa - luôn hoạt động)
-            if keywords:
-                # Chỉ tạo Google News Search nếu ngôn ngữ English được chọn (hoặc không lọc)
-                if not langs_filter or "en" in langs_filter:
-                    gn_query = "+OR+".join(quote_plus(kw) for kw in keywords)
+            # Google News Search RSS (chỉ ngôn ngữ người dùng chọn)
+            if keywords and langs_filter:
+                _GN_LOCALES = {
+                    "en": ("en-US", "US", "US:en"),
+                    "fr": ("fr-FR", "FR", "FR:fr"),
+                    "ja": ("ja-JP", "JP", "JP:ja"),
+                    "ko": ("ko-KR", "KR", "KR:ko"),
+                    "es": ("es-ES", "ES", "ES:es"),
+                    "zh": ("zh-CN", "CN", "CN:zh-Hans"),
+                    "ru": ("ru-RU", "RU", "RU:ru"),
+                }
+                for lang_code in langs_filter:
+                    kws = kw_by_lang.get(lang_code, [])
+                    if not kws:
+                        continue
+                    locale = _GN_LOCALES.get(lang_code)
+                    if not locale:
+                        continue
+                    hl, gl, ceid = locale
+                    gn_terms = []
+                    for kw in kws:
+                        if " AND " in kw:
+                            gn_terms.extend(p.strip() for p in kw.split(" AND ") if p.strip())
+                        else:
+                            gn_terms.append(kw)
+                    gn_query = "+OR+".join(quote_plus(t) for t in gn_terms[:8])
                     gn_source = {
-                        "name": "Google News - Search",
-                        "url": f"https://news.google.com/rss/search?q={gn_query}&hl=en-US&gl=US&ceid=US:en",
+                        "name": f"Google News - {lang_code.upper()}",
+                        "url": f"https://news.google.com/rss/search?q={gn_query}&hl={hl}&gl={gl}&ceid={ceid}",
                         "type": "rss",
-                        "lang": "en",
+                        "lang": lang_code,
                         "category": "Google News Search"
                     }
                     tasks.append(fetch_rss(gn_source, hours=hours, keywords=None, client=client))
 
-            # GDELT (truyền langs_filter để lọc ngôn ngữ)
-            gdelt_query = " OR ".join(keywords) if keywords else ""
+            # GDELT (dùng tất cả keywords đa ngôn ngữ, truyền langs_filter)
+            gdelt_terms = kw_all if kw_all else (keywords if keywords else [])
+            gdelt_query = " OR ".join(gdelt_terms[:20]) if gdelt_terms else ""
             tasks.append(fetch_gdelt(query=gdelt_query, hours=hours, client=client,
                                      langs_filter=langs_filter))
 
-            # Reddit
+            # Reddit (tiếng Anh)
             for src in SOCIAL_SOURCES:
                 if src["type"] == "social" and "reddit" in src["url"]:
                     if not langs_filter or "en" in langs_filter:
-                        tasks.append(fetch_reddit(src, hours=hours, keywords=keywords, client=client))
+                        en_kws = kw_by_lang.get("en", keywords) if kw_by_lang else keywords
+                        tasks.append(fetch_reddit(src, hours=hours, keywords=en_kws, client=client))
 
             # Chạy song song
             results_lists = await asyncio.gather(*tasks, return_exceptions=True)
